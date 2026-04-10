@@ -143,7 +143,7 @@ CREATE TABLE IF NOT EXISTS bergen.user_info
     surname character varying COLLATE pg_catalog."default" NOT NULL,
     email character varying COLLATE pg_catalog."default" NOT NULL,
     date_of_birth DATE NOT NULL,
-    street character varying COLLATE pg_catalog."default" NOT NULL,
+    address character varying COLLATE pg_catalog."default" NOT NULL,
     city character varying COLLATE pg_catalog."default" NOT NULL,
     postal_code SMALLINT NOT NULL,
     state character varying COLLATE pg_catalog."default" NOT NULL,
@@ -169,7 +169,7 @@ CREATE TABLE IF NOT EXISTS bergen.membership
 (
     membership_type character varying(100) COLLATE pg_catalog."default" NOT NULL UNIQUE PRIMARY KEY,
     price numeric(10, 2) NOT NULL,
-    duration_days INTEGER NOT NULL
+    duration INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS bergen.bought_membership
@@ -179,7 +179,7 @@ CREATE TABLE IF NOT EXISTS bergen.bought_membership
     membership_type character varying(100) COLLATE pg_catalog."default" NOT NULL,
     is_active boolean NOT NULL,
     purchase_time TIMESTAMPTZ(3) DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    activation_time TIMESTAMPTZ(3) NOT NULL,
+    activation_time TIMESTAMPTZ(3) NOT NULL, -- Can be a NULL value if the user has not set a specific activation time, but for simplicity we will set it to the purchase time in that case
     expiration_time TIMESTAMPTZ(3) NOT NULL,
 	UNIQUE (purchase_id, user_id, membership_type)
 	--FOREIGN KEY (user_id) REFERENCES bergen.user_info (user_id),
