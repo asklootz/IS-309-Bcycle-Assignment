@@ -23,9 +23,13 @@ A repo for the Bcycle Assignement in IS-309_26 at University of Agder
   - [ANSWER]
 - The "0"s are not mandatory, can be done without and make the ID start with single digit.
   - [ANSWER]
-- Maybe have the ID not just be number
+- Maybe have the ID not just be number (user_id, trip_id and purchase_id)
+  - [ANSWER]
 
 
 ## Work to do for finishing all the queries needed:  
 ### PLSQL
- - [ ] Food
+ - [ ] Add all the procedures we made for Assignment 2 into the "plsql.sql" file and make sure it runs properly.
+### Other
+ - [ ] Create a new file "view-quieries.sql" to save all the queries used to show the data we have made and other info about the database we need to show.
+ - [ ] Create a sql-file to store all the different scripts in once place, and have them in the correct order (create scheam => create tables => create constraints => etc.)
