@@ -115,19 +115,19 @@ CREATE TABLE IF NOT EXISTS bergen.bike_status
 
 CREATE TABLE IF NOT EXISTS bergen.trip
 (
-    ride_id INTEGER GENERATED ALWAYS AS IDENTITY NOT NULL PRIMARY KEY,
-    user_id INTEGER NOT NULL,
+    ride_id VARCHAR(100) NOT NULL PRIMARY KEY,
+    user_id VARCHAR(100) NOT NULL,
     bike_id character varying(100) COLLATE pg_catalog."default" NOT NULL,
     program_id character varying(100) COLLATE pg_catalog."default" NOT NULL,
     start_time TIMESTAMPTZ(3) NOT NULL,
-    end_time TIMESTAMPTZ(3) NOT NULL,
+    end_time TIMESTAMPTZ(3),
     start_station_id character varying(100) COLLATE pg_catalog."default" NOT NULL,
-    end_station_id character varying(100) COLLATE pg_catalog."default" NOT NULL,
-    trip_distance NUMERIC NOT NULL,
-    battery_start INTEGER NOT NULL,
-    battery_end INTEGER NOT NULL,
+    end_station_id character varying(100) COLLATE pg_catalog."default",
+    trip_distance NUMERIC,
+    battery_start INTEGER,
+    battery_end INTEGER,
     trip_cost NUMERIC(5, 2), -- Not all trips may have a cost due to a subscription model
-    trip_duration interval NOT NULL,
+    trip_duration interval,
     UNIQUE (ride_id, user_id, bike_id, program_id)
 	--FOREIGN KEY (user_id) REFERENCES bergen.user_info (user_id),
 	--FOREIGN KEY (bike_id) REFERENCES bergen.bike (bike_id),
@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS bergen.trip
 
 CREATE TABLE IF NOT EXISTS bergen.user_info
 (
-    user_id INTEGER GENERATED ALWAYS AS IDENTITY NOT NULL PRIMARY KEY,
+    user_id VARCHAR(100) NOT NULL PRIMARY KEY,
     name character varying COLLATE pg_catalog."default" NOT NULL,
     surname character varying COLLATE pg_catalog."default" NOT NULL,
     email character varying COLLATE pg_catalog."default" NOT NULL,
@@ -157,7 +157,7 @@ CREATE TABLE IF NOT EXISTS bergen.user_info
 
 CREATE TABLE IF NOT EXISTS bergen.user_auth
 (
-    user_id INTEGER NOT NULL PRIMARY KEY,
+    user_id VARCHAR(100) NOT NULL PRIMARY KEY,
     hashsalt character varying COLLATE pg_catalog."default" NOT NULL,
     passhash character varying COLLATE pg_catalog."default" NOT NULL,
     email character varying COLLATE pg_catalog."default" NOT NULL,
@@ -174,8 +174,8 @@ CREATE TABLE IF NOT EXISTS bergen.membership
 
 CREATE TABLE IF NOT EXISTS bergen.bought_membership
 (
-    purchase_id INTEGER GENERATED ALWAYS AS IDENTITY NOT NULL PRIMARY KEY,
-    user_id INTEGER NOT NULL,
+    purchase_id VARCHAR(100) NOT NULL PRIMARY KEY,
+    user_id VARCHAR(100) NOT NULL,
     membership_type character varying(100) COLLATE pg_catalog."default" NOT NULL,
     is_active boolean NOT NULL,
     purchase_time TIMESTAMPTZ(3) DEFAULT CURRENT_TIMESTAMP NOT NULL,

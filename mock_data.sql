@@ -59,8 +59,8 @@ values ('Dennis', 'Hayakawa', 'dennis.hayakawa@example.com', '1980-09-12', 'Moto
 
 -- For user_auth-table:
 insert into bergen.user_auth (user_id, hashsalt, passhash, email)
-values ('1', 'random_salt_1', 'hashed_password_1', 'dennis.hayakawa@example.com'),
-('2', 'random_salt_2', 'hashed_password_2', 'charli.xcx@example.com');
+values ('user_1', 'random_salt_1', 'hashed_password_1', 'dennis.hayakawa@example.com'),
+('user_2', 'random_salt_2', 'hashed_password_2', 'charli.xcx@example.com');
 
 -- For membership-table:
 insert into bergen.membership (membership_type, price, duration)
@@ -68,5 +68,10 @@ values ('daily', 10, 1), ('weekly', 30, 7), ('monthly', 100, 30), ('yearly', 300
 
 -- For bought_membership-table:
 insert into bergen.bought_membership (user_id, membership_type, is_active, purchase_time, activation_time, expiration_time)
-values ('1', 'monthly', true, '2024-01-01 12:11:34.132', '2026-01-01 15:00:00', '2026-01-31 15:00:00'),
-('2', 'weekly', true, '2024-01-15 11:22:45.678', '2026-04-09 12:00:00', '2024-04-16 12:00:00');
+values ('purchase_1', 'monthly', true, '2024-01-01 12:11:34.132', '2026-04-01 15:00:00', '2026-05-01 15:00:00'),
+('purchase_2', 'weekly', false, '2024-01-15 11:22:45.678', '2026-04-09 12:00:00', '2024-04-16 12:00:00');
+
+-- For trip-table:
+insert into bergen.trip (ride_id, user_id, bike_id, program_id, start_time, end_time, start_station_id, end_station_id, trip_distance, battery_start, battery_end, trip_cost, trip_duration)
+values ('trip_1', 'user_1', 'bergen_bike_1', 'bcycle_bergen', '2024-01-10 08:00:00', '2024-01-10 08:30:00', 'bergen_station_1', 'bergen_station_2', 5.0, 85, 60, NULL, '00:30:00'),
+('trip_2', 'user_2', 'bergen_bike_3', 'bcycle_bergen', '2026-04-30 09:15:00', '2026-04-30 09:45:00', 'bergen_station_2', NULL, NULL, NULL, NULL, NULL, NULL);
