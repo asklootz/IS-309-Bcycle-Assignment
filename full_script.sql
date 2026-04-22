@@ -492,6 +492,66 @@ EXCEPTION
 END;
 $$;
 
+
+-- Stored procedure that will create a new account.
+CREATE OR REPLACE PROCEDURE bergen.create_account_sp( --(Jimmy)
+    IN p_name character varying,
+    IN p_surname character varying,
+    IN p_email character varying,
+    IN p_date_of_birth date,
+    IN p_street character varying,
+    IN p_city character varying,
+    IN p_postal_code int,
+    IN p_state character varying,
+    IN p_hashsalt character varying,
+    IN p_passhash character varying,
+    INOUT p_user_id character varying default NULL)
+LANGUAGE 'plpgsql'
+    SECURITY DEFINER 
+    SET search_path=postgres, pg_temp
+AS $BODY$
+DECLARE
+    v_user_id VARCHAR;
+    v_next_id INT;
+BEGIN
+    SELECT COUNT(*) + 1
+    INTO v_next_id
+    FROM bergen.user_info;
+
+    p_user_id := 'user_' || v_next_id;
+
+    INSERT INTO bergen.user_info ( user_id,
+        name, surname, email, date_of_birth,
+        address, city, postal_code, state,
+        total_trips, creation_date
+    )
+    VALUES ( p_user_id,
+        p_name, p_surname, p_email, p_date_of_birth,
+        p_street, p_city, p_postal_code, p_state,
+        0, CURRENT_TIMESTAMP
+    )
+    RETURNING user_id INTO v_user_id;
+
+    INSERT INTO bergen.user_auth (
+        user_id, hashsalt, passhash, email
+    )
+    VALUES (
+        v_user_id, p_hashsalt, p_passhash, p_email
+    );
+
+    p_user_id := v_user_id;
+
+    RAISE NOTICE 'Account created successfully with user_id: %', v_user_id;
+
+EXCEPTION
+    WHEN unique_violation THEN
+        RAISE EXCEPTION 'An account with email % already exists.', p_email;
+    WHEN OTHERS THEN
+        RAISE EXCEPTION 'An error occurred: %', SQLERRM;
+END;
+$BODY$;
+
+
 -- mock-data third
 
 -- For program-table:
