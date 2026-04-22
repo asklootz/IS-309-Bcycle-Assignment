@@ -165,6 +165,88 @@ END;
 $$;
 
 
+-- Stored procedure that will create a purchase. 
+CREATE OR REPLACE PROCEDURE bergen.purchase_membership_proc(
+    IN p_user_id VARCHAR,
+    IN p_membership_type VARCHAR,
+    IN p_is_active BOOLEAN,
+    IN p_activation_time TIMESTAMPTZ DEFAULT NULL,
+    INOUT p_purchase_id VARCHAR DEFAULT NULL
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_next_id INT;
+    v_duration INT;
+    v_activation_time TIMESTAMPTZ;
+    v_expiration_time TIMESTAMPTZ;
+BEGIN
+    -- Validate that membership type exists
+    PERFORM 1
+    FROM bergen.membership
+    WHERE membership_type = p_membership_type;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Invalid membership type: % does not exist in bergen.membership', p_membership_type;
+    END IF;
+
+    -- Validate that user exists
+    PERFORM 1
+    FROM bergen.user_info
+    WHERE user_id = p_user_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'User does not exist: user_id % was not found in bergen.user_info', p_user_id;
+    END IF;
+
+        -- Generate purchase_id according to required format
+    SELECT COUNT(*) + 1
+    INTO v_next_id
+    FROM bergen.bought_membership;
+
+    p_purchase_id := 'purchase_' || v_next_id;
+
+    -- Get duration from membership table
+    SELECT duration
+    INTO v_duration
+    FROM bergen.membership
+    WHERE membership_type = p_membership_type;
+
+    -- Use current timestamp if activation time is not provided
+    v_activation_time := COALESCE(p_activation_time, CURRENT_TIMESTAMP);
+
+    -- Derive expiration time from activation_time + duration
+    v_expiration_time := v_activation_time + (v_duration || ' days')::INTERVAL;
+
+    -- Insert purchase
+    INSERT INTO bergen.bought_membership (
+        purchase_id,
+        user_id,
+        membership_type,
+        is_active,
+        purchase_time,
+        activation_time,
+        expiration_time
+    )
+    VALUES (
+        p_purchase_id,
+        p_user_id,
+        p_membership_type,
+        p_is_active,
+        CURRENT_TIMESTAMP,
+        v_activation_time,
+        v_expiration_time
+    )
+    RETURNING purchase_id INTO p_purchase_id;
+
+EXCEPTION
+    WHEN unique_violation THEN
+        RAISE EXCEPTION 'Duplicate value caused a unique violation while purchasing membership';
+    WHEN OTHERS THEN
+        RAISE EXCEPTION 'Unexpected error in purchase_membership_proc: %', SQLERRM;
+END;
+$$;
+
 
 
 -- How to call the procedures:
