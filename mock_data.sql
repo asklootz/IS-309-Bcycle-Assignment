@@ -68,8 +68,8 @@ values ('daily', 10, 1), ('weekly', 30, 7), ('monthly', 100, 30), ('yearly', 300
 
 -- For bought_membership-table:
 insert into bergen.bought_membership (purchase_id, user_id, membership_type, is_active, purchase_time, activation_time, expiration_time)
-values ('purchase_1', 'user_1', 'monthly', true, '2024-01-01 12:11:34.132', '2026-04-01 15:00:00', '2026-05-01 15:00:00'),
-('purchase_2', 'user_2', 'weekly', false, '2024-01-15 11:22:45.678', '2026-04-09 12:00:00', '2024-04-16 12:00:00');
+values ('purchase_1', 'user_1', 'monthly', true, '2024-01-01 12:11:34.132', '2026-09-01 15:00:00', '2026-10-01 15:00:00'),
+('purchase_2', 'user_2', 'weekly', false, '2024-01-15 11:22:45.678', '2026-04-09 12:00:00', '2026-04-16 12:00:00');
 
 -- For trip-table:
 insert into bergen.trip (ride_id, user_id, bike_id, program_id, start_time, end_time, start_station_id, end_station_id, trip_distance, battery_start, battery_end, trip_cost, trip_duration)

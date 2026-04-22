@@ -73,7 +73,7 @@ EXECUTE FUNCTION bergen.check_date_acquired();
 
 -- Trigger function that will be used on direct insert-statements for adding to the "bike"-table. 
 -- This function will simply raise a notice that an insert statement has been executed on the bike table
-CREATE OR REPLACE FUNCTION bergen.bike_insert_statement_trigger()
+CREATE OR REPLACE FUNCTION bergen.bike_insert_statement_trigger() --(Ida)
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
@@ -88,6 +88,50 @@ CREATE TRIGGER trg_bike_insert_statement
 AFTER INSERT ON bergen.bike
 FOR EACH STATEMENT
 EXECUTE FUNCTION bergen.bike_insert_statement_trigger();
+
+
+
+-- Trigger function that will be used on direct insert-statements for adding to the "bought_membership"-table. 
+-- This function will check that the expiration time is later than the activation time, and will raise an exception if it is not.
+CREATE OR REPLACE FUNCTION bergen.check_membership_dates() --(Rikke)
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.expiration_time <= NEW.activation_time THEN
+        RAISE EXCEPTION 'Expiration time must be later than activation time';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+-- Row-level trigger
+DROP TRIGGER IF EXISTS trg_check_membership_dates ON bergen.bought_membership;
+CREATE TRIGGER trg_check_membership_dates
+BEFORE INSERT OR UPDATE ON bergen.bought_membership
+FOR EACH ROW
+EXECUTE FUNCTION bergen.check_membership_dates();
+
+
+-- Trigger function that will be used on direct insert-statements for adding to the "bought_membership"-table. 
+-- This function will simply raise a notice that an insert statement has been executed on the bought_members table.
+CREATE OR REPLACE FUNCTION bergen.membership_insert_statement_trigger() --(Rikke)
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RAISE NOTICE 'Insert statement executed on bought_membership table';
+    RETURN NULL;
+END;
+$$;
+
+-- Statement-level trigger
+DROP TRIGGER IF EXISTS trg_membership_insert_statement ON bergen.bought_membership;
+CREATE TRIGGER trg_membership_insert_statement
+AFTER INSERT ON bergen.bought_membership
+FOR EACH STATEMENT
+EXECUTE FUNCTION bergen.membership_insert_statement_trigger();
 
 
 --PLSQL_PROCEDURES
@@ -166,7 +210,7 @@ $$;
 
 
 -- Stored procedure that will create a purchase. 
-CREATE OR REPLACE PROCEDURE bergen.purchase_membership_proc(
+CREATE OR REPLACE PROCEDURE bergen.purchase_membership_proc( --(Rikke)
     IN p_user_id VARCHAR,
     IN p_membership_type VARCHAR,
     IN p_is_active BOOLEAN,
@@ -252,3 +296,4 @@ $$;
 -- How to call the procedures:
 -- CALL bergen.insert_new_station('Nygaten', 'Nygaten 1', 5003, 60.3920, 5.3210, 4);
 -- CALL bergen.create_bicycle_proc('electric_1');
+-- CALL bergen.purchase_membership_proc('user_1', 'monthly', 'true', '2026-05-22 09:45:00');

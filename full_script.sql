@@ -199,6 +199,17 @@ CREATE SEQUENCE IF NOT EXISTS bergen.bike_status_seq INCREMENT BY 1;
 
 -- PLSQL_FUNCTIONS
 
+-- SEQUENCES
+CREATE SEQUENCE IF NOT EXISTS bergen.station_seq INCREMENT BY 1;
+CREATE SEQUENCE IF NOT EXISTS bergen.station_status_seq INCREMENT BY 1;
+CREATE SEQUENCE IF NOT EXISTS bergen.bike_type_seq INCREMENT BY 1;
+--CREATE SEQUENCE IF NOT EXISTS bergen.bike_seq INCREMENT BY 1;
+CREATE SEQUENCE IF NOT EXISTS bergen.bike_status_seq INCREMENT BY 1;
+
+
+
+-- PLSQL_FUNCTIONS
+
 -- Standalone stored function that can be called directly and will generate a new ID
 CREATE OR REPLACE FUNCTION bergen.gen_station_id( --(Ask)
     program_name VARCHAR
@@ -263,7 +274,7 @@ EXECUTE FUNCTION bergen.check_date_acquired();
 
 -- Trigger function that will be used on direct insert-statements for adding to the "bike"-table. 
 -- This function will simply raise a notice that an insert statement has been executed on the bike table
-CREATE OR REPLACE FUNCTION bergen.bike_insert_statement_trigger()
+CREATE OR REPLACE FUNCTION bergen.bike_insert_statement_trigger() --(Ida)
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
@@ -278,6 +289,50 @@ CREATE TRIGGER trg_bike_insert_statement
 AFTER INSERT ON bergen.bike
 FOR EACH STATEMENT
 EXECUTE FUNCTION bergen.bike_insert_statement_trigger();
+
+
+
+-- Trigger function that will be used on direct insert-statements for adding to the "bought_membership"-table. 
+-- This function will check that the expiration time is later than the activation time, and will raise an exception if it is not.
+CREATE OR REPLACE FUNCTION bergen.check_membership_dates() --(Rikke)
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.expiration_time <= NEW.activation_time THEN
+        RAISE EXCEPTION 'Expiration time must be later than activation time';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+-- Row-level trigger
+DROP TRIGGER IF EXISTS trg_check_membership_dates ON bergen.bought_membership;
+CREATE TRIGGER trg_check_membership_dates
+BEFORE INSERT OR UPDATE ON bergen.bought_membership
+FOR EACH ROW
+EXECUTE FUNCTION bergen.check_membership_dates();
+
+
+-- Trigger function that will be used on direct insert-statements for adding to the "bought_membership"-table. 
+-- This function will simply raise a notice that an insert statement has been executed on the bought_members table.
+CREATE OR REPLACE FUNCTION bergen.membership_insert_statement_trigger() --(Rikke)
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RAISE NOTICE 'Insert statement executed on bought_membership table';
+    RETURN NULL;
+END;
+$$;
+
+-- Statement-level trigger
+DROP TRIGGER IF EXISTS trg_membership_insert_statement ON bergen.bought_membership;
+CREATE TRIGGER trg_membership_insert_statement
+AFTER INSERT ON bergen.bought_membership
+FOR EACH STATEMENT
+EXECUTE FUNCTION bergen.membership_insert_statement_trigger();
 
 
 --PLSQL_PROCEDURES
@@ -355,6 +410,87 @@ END;
 $$;
 
 
+-- Stored procedure that will create a purchase. 
+CREATE OR REPLACE PROCEDURE bergen.purchase_membership_proc( --(Rikke)
+    IN p_user_id VARCHAR,
+    IN p_membership_type VARCHAR,
+    IN p_is_active BOOLEAN,
+    IN p_activation_time TIMESTAMPTZ DEFAULT NULL,
+    INOUT p_purchase_id VARCHAR DEFAULT NULL
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_next_id INT;
+    v_duration INT;
+    v_activation_time TIMESTAMPTZ;
+    v_expiration_time TIMESTAMPTZ;
+BEGIN
+    -- Validate that membership type exists
+    PERFORM 1
+    FROM bergen.membership
+    WHERE membership_type = p_membership_type;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Invalid membership type: % does not exist in bergen.membership', p_membership_type;
+    END IF;
+
+    -- Validate that user exists
+    PERFORM 1
+    FROM bergen.user_info
+    WHERE user_id = p_user_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'User does not exist: user_id % was not found in bergen.user_info', p_user_id;
+    END IF;
+
+        -- Generate purchase_id according to required format
+    SELECT COUNT(*) + 1
+    INTO v_next_id
+    FROM bergen.bought_membership;
+
+    p_purchase_id := 'purchase_' || v_next_id;
+
+    -- Get duration from membership table
+    SELECT duration
+    INTO v_duration
+    FROM bergen.membership
+    WHERE membership_type = p_membership_type;
+
+    -- Use current timestamp if activation time is not provided
+    v_activation_time := COALESCE(p_activation_time, CURRENT_TIMESTAMP);
+
+    -- Derive expiration time from activation_time + duration
+    v_expiration_time := v_activation_time + (v_duration || ' days')::INTERVAL;
+
+    -- Insert purchase
+    INSERT INTO bergen.bought_membership (
+        purchase_id,
+        user_id,
+        membership_type,
+        is_active,
+        purchase_time,
+        activation_time,
+        expiration_time
+    )
+    VALUES (
+        p_purchase_id,
+        p_user_id,
+        p_membership_type,
+        p_is_active,
+        CURRENT_TIMESTAMP,
+        v_activation_time,
+        v_expiration_time
+    )
+    RETURNING purchase_id INTO p_purchase_id;
+
+EXCEPTION
+    WHEN unique_violation THEN
+        RAISE EXCEPTION 'Duplicate value caused a unique violation while purchasing membership';
+    WHEN OTHERS THEN
+        RAISE EXCEPTION 'Unexpected error in purchase_membership_proc: %', SQLERRM;
+END;
+$$;
 
 -- mock-data third
 
@@ -426,8 +562,8 @@ values ('daily', 10, 1), ('weekly', 30, 7), ('monthly', 100, 30), ('yearly', 300
 
 -- For bought_membership-table:
 insert into bergen.bought_membership (purchase_id, user_id, membership_type, is_active, purchase_time, activation_time, expiration_time)
-values ('purchase_1', 'user_1', 'monthly', true, '2024-01-01 12:11:34.132', '2026-04-01 15:00:00', '2026-05-01 15:00:00'),
-('purchase_2', 'user_2', 'weekly', false, '2024-01-15 11:22:45.678', '2026-04-09 12:00:00', '2024-04-16 12:00:00');
+values ('purchase_1', 'user_1', 'monthly', true, '2024-01-01 12:11:34.132', '2026-09-01 15:00:00', '2026-10-01 15:00:00'),
+('purchase_2', 'user_2', 'weekly', false, '2024-01-15 11:22:45.678', '2026-04-09 12:00:00', '2026-04-16 12:00:00');
 
 -- For trip-table:
 insert into bergen.trip (ride_id, user_id, bike_id, program_id, start_time, end_time, start_station_id, end_station_id, trip_distance, battery_start, battery_end, trip_cost, trip_duration)
@@ -437,5 +573,44 @@ values ('trip_1', 'user_1', 'bergen_bike_1', 'bcycle_bergen', '2024-01-10 08:00:
 
 
 -- constraints next
+-- CONSTRAINTS
+ALTER TABLE IF EXISTS bergen.station
+	ADD CONSTRAINT program_fk FOREIGN KEY (program_id) REFERENCES bergen.program (program_id);
 
--- roles and permissions last
+ALTER TABLE IF EXISTS bergen.station_status
+	ADD CONSTRAINT station_fk FOREIGN KEY (station_id) REFERENCES bergen.station (station_id),
+	ADD CONSTRAINT dock_fk FOREIGN KEY (dock_id) REFERENCES bergen.station_dock (dock_id);
+
+ALTER TABLE IF EXISTS bergen.station_dock
+	ADD CONSTRAINT station_fk FOREIGN KEY (station_id) REFERENCES bergen.station (station_id),
+	ADD CONSTRAINT bike_fk FOREIGN KEY (bike_id) REFERENCES bergen.bike (bike_id);
+
+ALTER TABLE IF EXISTS bergen.bike_type
+	ADD CONSTRAINT program_fk FOREIGN KEY (program_id) REFERENCES bergen.program (program_id);
+
+ALTER TABLE IF EXISTS bergen.bike
+	ADD CONSTRAINT dock_fk FOREIGN KEY (dock_id) REFERENCES bergen.station_dock (dock_id),
+	ADD CONSTRAINT bike_type_fk FOREIGN KEY (bike_type_id) REFERENCES bergen.bike_type (bike_type_id);
+
+ALTER TABLE IF EXISTS bergen.bike_status
+	ADD CONSTRAINT bike_fk FOREIGN KEY (bike_id) REFERENCES bergen.bike (bike_id);
+
+ALTER TABLE IF EXISTS bergen.trip
+	ADD CONSTRAINT user_fk FOREIGN KEY (user_id) REFERENCES bergen.user_info (user_id),
+	ADD CONSTRAINT bike_fk FOREIGN KEY (bike_id) REFERENCES bergen.bike (bike_id),
+	ADD CONSTRAINT program_fk FOREIGN KEY (program_id) REFERENCES bergen.program (program_id),
+	ADD CONSTRAINT start_station_fk FOREIGN KEY (start_station_id) REFERENCES bergen.station (station_id),
+	ADD CONSTRAINT end_station_fk FOREIGN KEY (end_station_id) REFERENCES bergen.station (station_id);
+
+ALTER TABLE IF EXISTS bergen.user_auth
+	ADD CONSTRAINT user_fk FOREIGN KEY (user_id) REFERENCES bergen.user_info (user_id);
+
+ALTER TABLE IF EXISTS bergen.bought_membership
+	ADD CONSTRAINT user_fk FOREIGN KEY (user_id) REFERENCES bergen.user_info (user_id),
+	ADD CONSTRAINT membership_fk FOREIGN KEY (membership_type) REFERENCES bergen.membership (membership_type);
+
+
+-- roles and permissions next
+
+
+-- Analysis last
