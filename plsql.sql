@@ -2,7 +2,7 @@
 CREATE SEQUENCE IF NOT EXISTS bergen.station_seq INCREMENT BY 1;
 CREATE SEQUENCE IF NOT EXISTS bergen.station_status_seq INCREMENT BY 1;
 CREATE SEQUENCE IF NOT EXISTS bergen.bike_type_seq INCREMENT BY 1;
-CREATE SEQUENCE IF NOT EXISTS bergen.bike_seq INCREMENT BY 1;
+--CREATE SEQUENCE IF NOT EXISTS bergen.bike_seq INCREMENT BY 1;
 CREATE SEQUENCE IF NOT EXISTS bergen.bike_status_seq INCREMENT BY 1;
 
 
@@ -10,7 +10,7 @@ CREATE SEQUENCE IF NOT EXISTS bergen.bike_status_seq INCREMENT BY 1;
 -- PLSQL_FUNCTIONS
 
 -- Standalone stored function that can be called directly and will generate a new ID
-CREATE OR REPLACE FUNCTION bergen.gen_station_id(
+CREATE OR REPLACE FUNCTION bergen.gen_station_id( --(Ask)
     program_name VARCHAR
 )
 RETURNS VARCHAR AS
@@ -27,7 +27,7 @@ $$ LANGUAGE plpgsql;
 
 -- Trigger function that will be used on direct insert-statements for adding to the "station"-table. 
 -- This function will only run if the data for new entry is empty, will therefor not interfere with "bergen.insert_new_station"
-CREATE OR REPLACE FUNCTION bergen.trg_func_gen_station_id()
+CREATE OR REPLACE FUNCTION bergen.trg_func_gen_station_id() --(Ask)
 RETURNS TRIGGER AS
 $$
 DECLARE 
@@ -41,6 +41,7 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
 -- Trigger object for trigger function
 CREATE TRIGGER trg_station_id
 BEFORE INSERT ON bergen.station
@@ -49,27 +50,50 @@ EXECUTE FUNCTION bergen.trg_func_gen_station_id();
 
 
 -- Trigger function that will be used on direct insert-statements for adding to the "bike"-table. 
-CREATE OR REPLACE FUNCTION bergen.gen_bike_id()
-RETURNS TRIGGER AS
-$$
+-- This function will check that the date the bike was acquired is not in the future, and will raise an exception if it is.
+CREATE OR REPLACE FUNCTION bergen.check_date_acquired() --(Ida)
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
 BEGIN
-	IF NEW.bike_id IS NULL OR NEW.bike_id = '' THEN
-		NEW.bike_id := NEW.bike_type_id || '_' || (nextval('bergen.bike_seq');
-	END IF;
-	RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+    IF NEW.date_acquired > CURRENT_DATE THEN
+        RAISE EXCEPTION 'date_acquired cannot be in the future';
+    END IF;
 
-CREATE TRIGGER trg_bike_id
-BEFORE INSERT ON bergen.bike
+    RETURN NEW;
+END;
+$$;
+
+-- Trigger object for trigger function
+CREATE TRIGGER trg_check_date_acquired
+BEFORE INSERT OR UPDATE ON bergen.bike
 FOR EACH ROW
-EXECUTE FUNCTION bergen.gen_bike_id();
+EXECUTE FUNCTION bergen.check_date_acquired();
+
+
+-- Trigger function that will be used on direct insert-statements for adding to the "bike"-table. 
+-- This function will simply raise a notice that an insert statement has been executed on the bike table
+CREATE OR REPLACE FUNCTION bergen.bike_insert_statement_trigger()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RAISE NOTICE 'Insert statement executed on bike table';
+    RETURN NULL;
+END;
+$$;
+
+--Statement-level trigger
+CREATE TRIGGER trg_bike_insert_statement
+AFTER INSERT ON bergen.bike
+FOR EACH STATEMENT
+EXECUTE FUNCTION bergen.bike_insert_statement_trigger();
 
 
 --PLSQL_PROCEDURES
 
 -- Stored procedure that will create a new station filling in the remaining data
-CREATE OR REPLACE PROCEDURE bergen.insert_new_station( 
+CREATE OR REPLACE PROCEDURE bergen.insert_new_station(  --(Ask)
     st_name VARCHAR, 
     st_address VARCHAR, 
     st_postal_code INT, 
@@ -98,34 +122,25 @@ END;
 $$;
 
 
--- Stoored procedure that creates bikes
-CREATE OR REPLACE PROCEDURE bergen.create_bicycle_proc(
-    IN out p_bike_id VARCHAR DEFAULT NULL,
-    IN p_dock_id VARCHAR,
-    IN p_biketype_id VARCHAR,
-    IN p_year_acquired INT
+-- Stored procedure that creates bikes
+-- Stored procedure: create_bicycle_proc
+
+CREATE OR REPLACE PROCEDURE bergen.create_bicycle_proc( --(Ida)
+    IN p_bike_type_id VARCHAR
 )
 LANGUAGE plpgsql
 AS $$
 DECLARE
     v_next_id INT;
+    p_bike_id VARCHAR;
 BEGIN
-    -- Validate foreign key reference: dock must exist
-    PERFORM 1
-    FROM bergen.station_dock
-    WHERE dock_id = p_dock_id;
-
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'Invalid dock_id: % does not exist in bergen.station_dock', p_dock_id;
-    END IF;
-
     -- Validate foreign key reference: bike type must exist
     PERFORM 1
     FROM bergen.bike_type
-    WHERE biketype_id = p_biketype_id;
+    WHERE bike_type_id = p_bike_type_id;
 
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'Invalid biketype_id: % does not exist in bergen.bike_type', p_biketype_id;
+        RAISE EXCEPTION 'Invalid bike_type_id: % does not exist in bergen.bike_type', p_bike_type_id;
     END IF;
 
     -- Generate bike_id according to required format
@@ -136,8 +151,8 @@ BEGIN
     p_bike_id := 'bergen_bike_' || v_next_id;
 
     -- Insert bicycle
-    INSERT INTO bergen.bike (bike_id, dock_id, biketype_id, year_acquired)
-    VALUES (p_bike_id, p_dock_id, p_biketype_id, p_year_acquired);
+    INSERT INTO bergen.bike (bike_id, dock_id, bike_type_id)
+    VALUES (p_bike_id, NULL, p_bike_type_id);
 
 EXCEPTION
     WHEN unique_violation THEN
@@ -148,3 +163,10 @@ EXCEPTION
         RAISE EXCEPTION 'Unexpected error in create_bicycle_proc: %', SQLERRM;
 END;
 $$;
+
+
+
+
+-- How to call the procedures:
+-- CALL bergen.insert_new_station('Nygaten', 'Nygaten 1', 5003, 60.3920, 5.3210, 4);
+-- CALL bergen.create_bicycle_proc('electric_1');
