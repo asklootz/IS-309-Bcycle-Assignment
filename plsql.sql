@@ -11,14 +11,14 @@ CREATE SEQUENCE IF NOT EXISTS bergen.bike_status_seq INCREMENT BY 1;
 
 -- Standalone stored function that can be called directly and will generate a new ID
 CREATE OR REPLACE FUNCTION bergen.gen_station_id(
-    program_id VARCHAR
+    program_name VARCHAR
 )
 RETURNS VARCHAR AS
 $$
 DECLARE 
 	station_id VARCHAR;
 BEGIN
-    station_id := program_id || '_' || LPAD(nextval('bergen.station_seq')::text, 4, '0');
+station_id := program_name || '_station_' || nextval('bergen.station_seq');
     RETURN  station_id;
 END;
 $$ LANGUAGE plpgsql;
@@ -30,9 +30,12 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION bergen.trg_func_gen_station_id()
 RETURNS TRIGGER AS
 $$
+DECLARE 
+    program_name VARCHAR;
 BEGIN
-    IF NEW.station_id IS NULL OR NEW.station_id = '' THEN
-        NEW.station_id := NEW.program_id || '_' || LPAD(nextval('bergen.station_seq')::text, 4, '0');
+	IF NEW.station_id IS NULL OR NEW.station_id = '' THEN
+    SELECT name INTO program_name FROM bergen.program WHERE program_id = NEW.program_id;
+        NEW.station_id := program_name || '_station_' || nextval('bergen.station_seq');
         RETURN NEW;
     END IF;
     RETURN NEW;
@@ -51,7 +54,7 @@ RETURNS TRIGGER AS
 $$
 BEGIN
 	IF NEW.bike_id IS NULL OR NEW.bike_id = '' THEN
-		NEW.bike_id := NEW.bike_type_id || '_' || LPAD(nextval('bergen.bike_seq')::text, 4, '0');
+		NEW.bike_id := NEW.bike_type_id || '_' || (nextval('bergen.bike_seq');
 	END IF;
 	RETURN NEW;
 END;
@@ -79,8 +82,8 @@ AS $$
 DECLARE
     rows_affected INT;
 BEGIN 
-    INSERT INTO bergen.station (station_id ,program_id, name, address, postal_code, latitude, longitude, capacity) 
-    SELECT bergen.gen_station_id(program_id), program_id, st_name, st_address, st_postal_code, st_latitude, st_longitude, st_capacity 
+    INSERT INTO bergen.station (station_id ,program_id, name, address, postal_code, latitude, longitude, total_capacity, available_docks) 
+    SELECT bergen.gen_station_id(name), program_id, st_name, st_address, st_postal_code, st_latitude, st_longitude, st_capacity, st_capacity
     FROM bergen.program 
     WHERE program_id = 'bcycle_bergen';
 
@@ -91,5 +94,57 @@ BEGIN
     ELSE
         RAISE WARNING 'Ingen rader satt inn! Sjekk om program_id "bcycle_bergen" eksisterer i bergen.program.';
     END IF;
+END;
+$$;
+
+
+-- Stoored procedure that creates bikes
+CREATE OR REPLACE PROCEDURE bergen.create_bicycle_proc(
+    IN out p_bike_id VARCHAR DEFAULT NULL,
+    IN p_dock_id VARCHAR,
+    IN p_biketype_id VARCHAR,
+    IN p_year_acquired INT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_next_id INT;
+BEGIN
+    -- Validate foreign key reference: dock must exist
+    PERFORM 1
+    FROM bergen.station_dock
+    WHERE dock_id = p_dock_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Invalid dock_id: % does not exist in bergen.station_dock', p_dock_id;
+    END IF;
+
+    -- Validate foreign key reference: bike type must exist
+    PERFORM 1
+    FROM bergen.bike_type
+    WHERE biketype_id = p_biketype_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Invalid biketype_id: % does not exist in bergen.bike_type', p_biketype_id;
+    END IF;
+
+    -- Generate bike_id according to required format
+    SELECT COUNT(*) + 1
+    INTO v_next_id
+    FROM bergen.bike;
+
+    p_bike_id := 'bergen_bike_' || v_next_id;
+
+    -- Insert bicycle
+    INSERT INTO bergen.bike (bike_id, dock_id, biketype_id, year_acquired)
+    VALUES (p_bike_id, p_dock_id, p_biketype_id, p_year_acquired);
+
+EXCEPTION
+    WHEN unique_violation THEN
+        RAISE EXCEPTION 'Duplicate value error while creating bicycle.';
+    WHEN raise_exception THEN
+        RAISE;
+    WHEN OTHERS THEN
+        RAISE EXCEPTION 'Unexpected error in create_bicycle_proc: %', SQLERRM;
 END;
 $$;
