@@ -190,22 +190,6 @@ CREATE TABLE IF NOT EXISTS bergen.bought_membership
 -- plsql second
 -- SEQUENCES
 CREATE SEQUENCE IF NOT EXISTS bergen.station_seq INCREMENT BY 1;
-CREATE SEQUENCE IF NOT EXISTS bergen.station_status_seq INCREMENT BY 1;
-CREATE SEQUENCE IF NOT EXISTS bergen.bike_type_seq INCREMENT BY 1;
---CREATE SEQUENCE IF NOT EXISTS bergen.bike_seq INCREMENT BY 1;
-CREATE SEQUENCE IF NOT EXISTS bergen.bike_status_seq INCREMENT BY 1;
-
-
-
--- PLSQL_FUNCTIONS
-
--- SEQUENCES
-CREATE SEQUENCE IF NOT EXISTS bergen.station_seq INCREMENT BY 1;
-CREATE SEQUENCE IF NOT EXISTS bergen.station_status_seq INCREMENT BY 1;
-CREATE SEQUENCE IF NOT EXISTS bergen.bike_type_seq INCREMENT BY 1;
---CREATE SEQUENCE IF NOT EXISTS bergen.bike_seq INCREMENT BY 1;
-CREATE SEQUENCE IF NOT EXISTS bergen.bike_status_seq INCREMENT BY 1;
-
 
 
 -- PLSQL_FUNCTIONS
@@ -548,6 +532,130 @@ EXCEPTION
         RAISE EXCEPTION 'An account with email % already exists.', p_email;
     WHEN OTHERS THEN
         RAISE EXCEPTION 'An error occurred: %', SQLERRM;
+END;
+$BODY$;
+
+-- Stored procedure that will start a trip. This procedure will check that the station exists, that the bike is available, and will then create a new trip and update the bike and station status accordingly.
+
+CREATE OR REPLACE PROCEDURE bergen.start_trip_sp( --(Madalitso)
+    IN  p_user_id          VARCHAR,
+    IN  p_bike_id          VARCHAR,
+    IN  p_program_id       VARCHAR,
+    IN  p_start_station_id VARCHAR,
+    OUT p_trip_id          VARCHAR,
+    IN  p_start_time       TIMESTAMPTZ DEFAULT NOW()
+)
+LANGUAGE plpgsql
+AS $BODY$
+DECLARE
+    v_battery_start  INTEGER;
+    v_last_bike_lat  NUMERIC;
+    v_last_bike_lon  NUMERIC;
+    v_ss_prev        bergen.station_status%ROWTYPE;
+    v_new_ssid       VARCHAR;
+    v_new_bs_id      VARCHAR;
+BEGIN
+    -- 1) Check that the start station exists for the given program
+    PERFORM 1
+    FROM bergen.station
+    WHERE station_id = p_start_station_id
+      AND program_id = p_program_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'START_TRIP_SP: station % (program %) does not exist.',
+            p_start_station_id, p_program_id;
+    END IF;
+
+    -- 2) Get the last bike status for the bike to be used in the trip
+    SELECT bs.battery, bs.latitude, bs.longitude
+    INTO   v_battery_start, v_last_bike_lat, v_last_bike_lon
+    FROM   bergen.bike_status bs
+    WHERE  bs.bike_id = p_bike_id
+    ORDER  BY bs.last_updated DESC
+    LIMIT  1;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'START_TRIP_SP: no status found for bike_id=%.', p_bike_id;
+    END IF;
+
+    -- 3) Generate a new trip_id
+    SELECT 'trip_' || (COALESCE(MAX(CAST(SUBSTRING(ride_id FROM 6) AS INTEGER)), 0) + 1)::TEXT
+    INTO   p_trip_id
+    FROM   bergen.trip;
+
+    -- 4) Insert the new trip with the starting information
+    INSERT INTO bergen.trip (
+        ride_id, user_id, bike_id, program_id,
+        start_time, start_station_id, battery_start
+    )
+    VALUES (
+        p_trip_id, p_user_id, p_bike_id, p_program_id,
+        p_start_time, p_start_station_id, v_battery_start
+    );
+
+    -- 5) Generate a new bike_status_id
+    SELECT 'bike_status_' || (COALESCE(MAX(CAST(SUBSTRING(bike_status_id FROM 13) AS INTEGER)), 0) + 1)::TEXT
+    INTO   v_new_bs_id
+    FROM   bergen.bike_status;
+
+    -- 6) Mark the bike as in use with the new bike_status
+    INSERT INTO bergen.bike_status (
+        bike_status_id, bike_id, status,
+        latitude, longitude,
+        battery, remaining_range, total_distance, last_updated
+    )
+    VALUES (
+        v_new_bs_id, p_bike_id, 'in_use',
+        v_last_bike_lat, v_last_bike_lon,
+        v_battery_start, NULL, 0, NOW()
+    );
+
+    -- 7) Get the last station_status information for the start station
+    SELECT * INTO v_ss_prev
+    FROM   bergen.station_status ss
+    WHERE  ss.station_id = p_start_station_id
+    ORDER  BY ss.last_updated DESC
+    LIMIT  1;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'START_TRIP_SP: no station_status found for station_id=%.', p_start_station_id;
+    END IF;
+
+    -- 8) Generate new station_status_id
+    SELECT 'station_status_' || (COALESCE(MAX(CAST(SUBSTRING(station_status_id FROM 16) AS INTEGER)), 0) + 1)::TEXT
+    INTO   v_new_ssid
+    FROM   bergen.station_status;
+
+    -- 9) Insert new station_status
+    INSERT INTO bergen.station_status (
+        station_status_id, station_id, dock_id,
+        available_docks,
+        regular_bikes_available, electric_bikes_available,
+        smart_bikes_available,   cargo_bikes_available,
+        is_accepting_returns, is_accepting_renting,
+        last_updated
+    )
+    VALUES (
+        v_new_ssid,
+        v_ss_prev.station_id,
+        v_ss_prev.dock_id,
+        v_ss_prev.available_docks + 1,
+        GREATEST(v_ss_prev.regular_bikes_available - 1, 0),
+        v_ss_prev.electric_bikes_available,
+        v_ss_prev.smart_bikes_available,
+        v_ss_prev.cargo_bikes_available,
+        v_ss_prev.is_accepting_returns,
+        v_ss_prev.is_accepting_renting,
+        NOW()
+    );
+
+    -- 10) Set the bike's dock_id to NULL since it's now in use
+    UPDATE bergen.bike
+    SET dock_id = NULL
+    WHERE bike_id = p_bike_id;
+
+    RAISE NOTICE 'START_TRIP_SP: Trip % started for user % with bike % at station %.',
+        p_trip_id, p_user_id, p_bike_id, p_start_station_id;
 END;
 $BODY$;
 
