@@ -1,4 +1,9 @@
--- Schema and tables first
+-- FULL SQL SCRIPT FOR BERGEN BIKE-SHARING PROGRAM
+-- This script includes the schema definition, table creation, stored functions and procedures, mock data insertion, and analysis queries for the Bergen bike-sharing program.
+-- The script is organized into sections for clarity and maintainability.
+-- To create a new schema and set up the database, simply run this script from start up until "ROLES AND PERMISSIONS" in a PostgreSQL environment. Then, you can run the analysis queries, view roles & rights and test the stored procedures as needed. 
+
+-- SCHEMA AND TABLES ------------------------------------------------------------------------------------------------------------------------------------------
 -- Timezone
 SET TIME ZONE 'Europe/Oslo';
 -- Schema
@@ -187,7 +192,8 @@ CREATE TABLE IF NOT EXISTS bergen.bought_membership
 	--FOREIGN KEY (membership_type) REFERENCES bergen.membership (membership_type)
 );
 
--- plsql second
+
+-- PLSQL functions and procedures -----------------------------------------------------------------------------------------------------------------------------------------------
 -- SEQUENCES
 CREATE SEQUENCE IF NOT EXISTS bergen.station_seq INCREMENT BY 1;
 
@@ -353,7 +359,6 @@ $$;
 
 -- Stored procedure that creates bikes
 -- Stored procedure: create_bicycle_proc
-
 CREATE OR REPLACE PROCEDURE bergen.create_bicycle_proc( --(Ida)
     IN p_bike_type_id VARCHAR
 )
@@ -536,7 +541,6 @@ END;
 $BODY$;
 
 -- Stored procedure that will start a trip. This procedure will check that the station exists, that the bike is available, and will then create a new trip and update the bike and station status accordingly.
-
 CREATE OR REPLACE PROCEDURE bergen.start_trip_sp( --(Madalitso)
     IN  p_user_id          VARCHAR,
     IN  p_bike_id          VARCHAR,
@@ -660,7 +664,7 @@ END;
 $BODY$;
 
 
--- mock-data third
+-- MOCK DATA ------------------------------------------------------------------------------------------------------------------------------------------
 
 -- For program-table:
 insert into  bergen.program (program_id, country_code, name, location, email, url, time_zone, phone)
@@ -740,7 +744,6 @@ values ('trip_1', 'user_1', 'bergen_bike_1', 'bcycle_bergen', '2024-01-10 08:00:
 
 
 
--- constraints next
 -- CONSTRAINTS
 ALTER TABLE IF EXISTS bergen.station
 	ADD CONSTRAINT program_fk FOREIGN KEY (program_id) REFERENCES bergen.program (program_id);
@@ -778,7 +781,155 @@ ALTER TABLE IF EXISTS bergen.bought_membership
 	ADD CONSTRAINT membership_fk FOREIGN KEY (membership_type) REFERENCES bergen.membership (membership_type);
 
 
--- roles and permissions next
+-- ROLES AND PERMISSIONS ------------------------------------------------------------------------------------------------------------------------------------------
+-- Role: bcycle_user
+-- Pass: bcycle_user_pass
+-- DROP ROLE IF EXISTS bcycle_user;
+CREATE ROLE bcycle_user WITH LOGIN NOSUPERUSER INHERIT NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
+PASSWORD 'bcycle_user_pass';
+GRANT pg_read_all_data TO bcycle_user WITH INHERIT OPTION, SET OPTION;
+-- GRANT SELECT ON ALL TABLES IN SCHEMA bergen TO bcycle_user; => Alternative way to give read access to 
 
 
--- Analysis last
+-- Role: bcycle_admin
+-- Pass: bcycle_admin_pass
+-- DROP ROLE IF EXISTS bcycle_admin;
+CREATE ROLE bcycle_admin LOGIN NOSUPERUSER INHERIT NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
+PASSWORD 'bcycle_admin_pass';
+
+GRANT bcycle_user TO bcycle_admin WITH INHERIT OPTION, SET OPTION;
+-- ALTER DEFAULT PRIVILEGES IN SCHEMA bergen GRANT EXECUTE ON ROUTINES TO bcycle_admin; => Be able to automatically get access to future procedures. 
+GRANT EXECUTE ON ALL PROCEDURES IN SCHEMA bergen TO bcycle_admin;
+
+
+-- Role: account_admin
+-- Pass: account_admin_pass
+-- DROP ROLE IF EXISTS account_admin;
+CREATE ROLE account_admin LOGIN NOSUPERUSER INHERIT NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
+PASSWORD 'account_admin_pass';
+
+GRANT bcycle_user TO account_admin WITH INHERIT OPTION, SET OPTION;
+GRANT EXECUTE ON PROCEDURE bergen.create_account_sp TO account_admin;
+GRANT EXECUTE ON PROCEDURE bergen.purchase_membership_proc TO account_admin;
+GRANT EXECUTE ON PROCEDURE bergen.start_trip_sp TO account_admin;
+
+-- Alter PROCEDURE so the different roles can use it
+-- This is necessary since the procedures were created before the roles, and thus only have permissions for the role that created them (in this case, the default postgres role).
+ALTER PROCEDURE bergen.purchase_membership_proc
+security definer SET search_path = postgres, pg_temp;
+
+ALTER PROCEDURE bergen.create_account_sp
+security definer SET search_path = postgres, pg_temp;
+
+ALTER PROCEDURE bergen.start_trip_sp
+security definer SET search_path = postgres, pg_temp;
+
+ALTER PROCEDURE bergen.insert_new_station
+security definer SET search_path = postgres, pg_temp;
+
+ALTER PROCEDURE bergen.create_bicycle_proc
+security definer SET search_path = postgres, pg_temp;
+
+-- Role: customer_support
+-- DROP ROLE IF EXISTS customer_support;
+CREATE ROLE customer_support WITH
+    NOLOGIN
+    NOSUPERUSER
+    INHERIT
+    NOCREATEDB
+    NOCREATEROLE
+    NOREPLICATION
+    NOBYPASSRLS;
+
+-- Role: operations_tech_team
+-- DROP ROLE IF EXISTS operations_tech_team;
+CREATE ROLE operations_tech_team WITH
+    NOLOGIN
+    NOSUPERUSER
+    INHERIT
+    NOCREATEDB
+    NOCREATEROLE
+    NOREPLICATION
+    NOBYPASSRLS;
+
+-- Role: station_manager
+-- DROP ROLE IF EXISTS station_manager;
+CREATE ROLE station_manager WITH
+    NOLOGIN
+    NOSUPERUSER
+    INHERIT
+    NOCREATEDB
+    NOCREATEROLE
+    NOREPLICATION
+    NOBYPASSRLS;
+
+-- Role: system_admin
+-- DROP ROLE IF EXISTS system_admin;
+CREATE ROLE system_admin WITH
+    LOGIN
+    NOSUPERUSER
+    INHERIT
+    NOCREATEDB
+    NOCREATEROLE
+    NOREPLICATION
+    NOBYPASSRLS
+    PASSWORD 'system_admin_pass';
+
+-- Granting permissions to the different roles.
+GRANT SELECT, INSERT, UPDATE ON bergen.station, bergen.station_dock, bergen.station_status TO station_manager;
+GRANT SELECT ON bergen.user_info, bergen.trip, bergen.bought_membership TO customer_support;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA bergen TO system_admin;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA bergen TO system_admin;
+GRANT SELECT, INSERT, UPDATE ON 
+    bergen.station,
+    bergen.station_dock,
+    bergen.station_status,
+    bergen.bike,
+    bergen.bike_status,
+    bergen.bike_type
+TO operations_tech_team;
+
+
+-- ANALYSIS QUERIES ------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+-- QUERIES TO TEST STORED PROCEDURES AND VIEW GRANTED RIGHTS ------------------------------------------------------------------------------------------------------------------------------------------
+
+-- How to call the procedures:
+-- CALL bergen.insert_new_station('Nygaten', 'Nygaten 1', 5003, 60.3920, 5.3210, 4);
+-- CALL bergen.create_bicycle_proc('electric_1');
+-- CALL bergen.purchase_membership_proc('user_1', 'monthly', 'true', '2026-05-22 09:45:00');
+-- CALL bergen.create_account_sp('Charli', 'XCX', 'charli.xcx@example.com', '1992-08-02', 'Bratgaten 2', 'Bergen', 5003::smallint, 'Hordaland', 'salty', 'hashy');
+-- CALL bergen.start_trip_sp(
+--    p_user_id          => 'user_1',
+--    p_bike_id          => 'bergen_bike_1',
+--    p_program_id       => 'bcycle_bergen',
+--    p_start_station_id => 'bergen_station_1',
+--    p_trip_id          => NULL,
+--    p_start_time       => NOW()
+--);
+
+-- To view grantings
+SELECT grantee, table_name AS object_name, privilege_type, 'TABLE' AS object_type
+FROM information_schema.role_table_grants 
+WHERE grantee IN (
+    'station_manager', 
+    'customer_support',
+    'operations_tech_team',
+    'system_admin'
+)
+
+UNION ALL
+
+SELECT grantee, object_name, privilege_type, 'SEQUENCE' AS object_type
+FROM information_schema.usage_privileges
+WHERE object_type = 'SEQUENCE'
+AND grantee IN (
+    'station_manager', 
+    'customer_support',
+    'operations_tech_team',
+    'system_admin'
+)
+
+ORDER BY grantee, object_type, object_name, privilege_type;

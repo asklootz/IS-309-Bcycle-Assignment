@@ -16,25 +16,14 @@ A repo for the Bcycle Assignement in IS-309_26 at University of Agder
 | user | user_id | "user_" + \*incrementing int\* | user_44 | __More informative ID than just numbers__ |
 | bought_membership | purchase_id | "purchase_" + \*incrementing int\* | purchase_22 | __More informative ID than just numbers__ |
 
-### General questions and comments for formatting:
-- Best way to keep the ID simple and informative/descriptive for different tables?
-  - [ANSWER]
-- Is self-explanatory ID important?
-  - [ANSWER]
-- The "0"s are not mandatory, can be done without and make the ID start with single digit.
-  - [ANSWER]
-- Maybe have the ID not just be number (user_id, trip_id and purchase_id)
-  - [ANSWER]
-
-
 ## Work to do for finishing all the queries needed:  
 ### PLSQL
- - [ ] Add all the procedures we made for Assignment 2 into the "plsql.sql" file and make sure it runs properly.
+ - [x] Add all the procedures we made for Assignment 2 into the "plsql.sql" file and make sure it runs properly.
  - [ ] Update the create station procedure so it will automatically create docks on creation
  - [ ] Make sure it will update station if you also add more docks. 
- - [ ] Automation for generating user_id
- - [ ] Automation for generating trip_id
- - [ ] Automation for generating purchase_id
+ - [x] Automation for generating user_id
+ - [x] Automation for generating trip_id
+ - [x] Automation for generating purchase_id
 ### Other
  - [ ] Create a new file "view-quieries.sql" to save all the queries used to show the data we have made and other info about the database we need to show.
  - [ ] Create a sql-file to store all the different scripts in once place, and have them in the correct order (create scheam => create tables => create constraints => etc.)

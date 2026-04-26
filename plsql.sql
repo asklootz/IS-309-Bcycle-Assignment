@@ -346,7 +346,6 @@ END;
 $BODY$;
 
 -- Stored procedure that will start a trip. This procedure will check that the station exists, that the bike is available, and will then create a new trip and update the bike and station status accordingly.
-
 CREATE OR REPLACE PROCEDURE bergen.start_trip_sp( --(Madalitso)
     IN  p_user_id          VARCHAR,
     IN  p_bike_id          VARCHAR,
