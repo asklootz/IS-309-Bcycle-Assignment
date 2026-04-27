@@ -25,5 +25,5 @@ A repo for the Bcycle Assignement in IS-309_26 at University of Agder
  - [x] Automation for generating trip_id
  - [x] Automation for generating purchase_id
 ### Other
- - [ ] Create a new file "view-quieries.sql" to save all the queries used to show the data we have made and other info about the database we need to show.
- - [ ] Create a sql-file to store all the different scripts in once place, and have them in the correct order (create scheam => create tables => create constraints => etc.)
+ - [x] Create a new file "view-quieries.sql" to save all the queries used to show the data we have made and other info about the database we need to show.
+ - [x] Create a sql-file to store all the different scripts in once place, and have them in the correct order (create scheam => create tables => create constraints => etc.)
