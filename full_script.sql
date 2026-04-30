@@ -891,7 +891,63 @@ TO operations_tech_team;
 
 
 -- ANALYSIS QUERIES ------------------------------------------------------------------------------------------------------------------------------------------
+-- 1. Database size 
+SELECT pg_size_pretty(pg_database_size(current_database()));
 
+-- 2. Size of each relation 
+SELECT
+    relname AS table_name,
+    pg_size_pretty(pg_total_relation_size(c.oid)) AS total_size
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE relkind = 'r'
+  AND n.nspname = 'bergen'
+ORDER BY pg_total_relation_size(c.oid) DESC;
+
+-- 3. Update statistics 
+ANALYZE bergen.bike;
+ANALYZE bergen.bike_status;
+ANALYZE bergen.bike_type;
+ANALYZE bergen.bought_membership;
+ANALYZE bergen.membership;
+ANALYZE bergen.program;
+ANALYZE bergen.station;
+ANALYZE bergen.station_dock;
+ANALYZE bergen.station_status;
+ANALYZE bergen.trip;
+ANALYZE bergen.user_auth;
+ANALYZE bergen.user_info;
+
+-- 4. Pages and tuples 
+SELECT
+    relname,
+    relpages,
+    reltuples
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE relkind = 'r'
+  AND n.nspname = 'bergen';
+
+-- 5. Data dictionary 
+SELECT
+    table_name,
+    column_name,
+    data_type
+FROM information_schema.columns
+WHERE table_schema = 'bergen'
+ORDER BY table_name, ordinal_position;
+
+-- 6. Query performance analysis (INDEX TEST)
+EXPLAIN ANALYZE
+SELECT * FROM bergen.trip
+WHERE bike_id = 'bergen_bike_1';
+
+CREATE INDEX idx_trip_bike_id
+ON bergen.trip(bike_id);
+
+EXPLAIN ANALYZE
+SELECT * FROM bergen.trip
+WHERE bike_id = 'bergen_bike_1';
 
 
 -- QUERIES TO TEST STORED PROCEDURES AND VIEW GRANTED RIGHTS ------------------------------------------------------------------------------------------------------------------------------------------
